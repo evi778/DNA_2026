@@ -1,18 +1,22 @@
 """
-TSPN Drone Data Collection - Base Code
+TSPN Drone Data Collection - Corrected Version
 Optimizing a continuous path for drone data collection via
 spatial clustering and graph search.
 
 Authors: E. Dimitrievska, M. Peeva, F. Petrovski
+
+Corrections added by ChatGPT:
+- Hybrid algorithm now chooses ONE boundary touch point per sensor instead of
+  visiting every sampled boundary candidate.
+- Path length is now treated consistently as an OPEN robot path by default.
+- 2-opt now optimizes the same open-path cost that is reported and plotted.
+- Comments marked "CHANGED" show the important edits.
 """
 
+import math
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 from sklearn.cluster import KMeans, DBSCAN
-from itertools import permutations
-import random
-import math
 
 
 # =============================================================================
@@ -30,12 +34,12 @@ class Sensor:
         return f"Sensor(id={self.id}, x={self.x:.2f}, y={self.y:.2f}, r={self.radius:.2f})"
 
     def covers(self, point: tuple) -> bool:
-        #Check if a point is within the sensor's coverage radius.
-        return math.dist((self.x, self.y), point) <= self.radius
+        """Check if a point is within the sensor's coverage radius."""
+        return math.dist((self.x, self.y), point) <= self.radius + 1e-9  # CHANGED: tolerance for boundary floating-point checks.
 
 
 class Instance:
-    #A test instance containing sensors.
+    """A test instance containing sensors."""
     def __init__(self, sensors: list[Sensor]):
         self.sensors = sensors
         self.n = len(sensors)
@@ -116,73 +120,100 @@ def euclidean(a: tuple, b: tuple) -> float:
 
 
 def path_length(path: list[tuple]) -> float:
-    #Total Euclidean length of an ordered path (open tour).
+    """Total Euclidean length of an ordered OPEN path."""
+    if len(path) < 2:
+        return 0.0
     return sum(euclidean(path[i], path[i + 1]) for i in range(len(path) - 1))
 
 
 def tour_length(path: list[tuple]) -> float:
-    #Total length of a closed tour (returns to start).
+    """Total length of a CLOSED tour, returning to the first point."""
+    if len(path) < 2:
+        return 0.0
     return path_length(path) + euclidean(path[-1], path[0])
+
+
+# =============================================================================
+# SHARED HELPERS
+# =============================================================================
+
+def nearest_neighbor_order_indices(points: list[tuple], start_idx: int = 0) -> list[int]:
+    """Return point indices in nearest-neighbor order."""
+    if not points:
+        return []
+
+    unvisited = list(range(len(points)))
+    order = [start_idx]
+    unvisited.remove(start_idx)
+
+    while unvisited:
+        current = order[-1]
+        nearest = min(unvisited, key=lambda j: euclidean(points[current], points[j]))
+        order.append(nearest)
+        unvisited.remove(nearest)
+
+    return order
+
+
+def nearest_neighbor_tour(points: list[tuple], start_idx: int = 0) -> list[tuple]:
+    """Greedy nearest-neighbor heuristic for an ordered path."""
+    return [points[i] for i in nearest_neighbor_order_indices(points, start_idx)]
+
+
+def choose_boundary_point(sensor: Sensor, previous_point: tuple | None, n_boundary: int) -> tuple:
+    """
+    Choose one boundary point for a sensor.
+
+    CHANGED: This helper guarantees the path gets exactly one touch point per
+    sensor, not all sampled points from the boundary.
+    """
+    candidates = boundary_sample(sensor, n_boundary)
+    if previous_point is None:
+        return candidates[0]
+    return min(candidates, key=lambda p: euclidean(previous_point, p))
 
 
 # =============================================================================
 # ALGORITHM 1: CENTER-BASED HEURISTIC (Baseline)
 # =============================================================================
 
-def nearest_neighbor_tour(points: list[tuple], start_idx: int = 0) -> list[tuple]:
-    """Greedy nearest-neighbor heuristic for TSP."""
-    unvisited = list(range(len(points)))
-    tour = [start_idx]
-    unvisited.remove(start_idx)
-
-    while unvisited:
-        current = tour[-1]
-        nearest = min(unvisited, key=lambda j: euclidean(points[current], points[j]))
-        tour.append(nearest)
-        unvisited.remove(nearest)
-
-    return [points[i] for i in tour]
-
-
-def center_based_heuristic(instance: Instance) -> tuple[list[tuple], float]:
+def center_based_heuristic(instance: Instance, closed: bool = False) -> tuple[list[tuple], float]:
     """
     Algorithm 1: Ignore radii, treat sensor centers as TSP cities.
-    Returns (path, length).
+
+    CHANGED: Default length is now OPEN path length, matching the plotted path.
+    Set closed=True if you want to include return-to-start distance.
     """
     centers = [(s.x, s.y) for s in instance.sensors]
     path = nearest_neighbor_tour(centers)
-    return path, tour_length(path)
+    length = tour_length(path) if closed else path_length(path)
+    return path, length
 
 
 # =============================================================================
 # ALGORITHM 2: BOUNDARY SAMPLING
 # =============================================================================
 
-def boundary_sampling(instance: Instance, n_boundary: int = 12) -> tuple[list[tuple], float]:
+def boundary_sampling(
+    instance: Instance,
+    n_boundary: int = 12,
+    closed: bool = False,
+) -> tuple[list[tuple], float]:
     """
-    Algorithm 2: Generate candidate points on each sensor boundary,
-    then solve an approximate TSPN with nearest-neighbor.
-    Returns (path, length).
+    Algorithm 2: Generate boundary candidates, but choose ONE contact point per
+    sensor using a nearest-neighbor center order.
     """
-    # For each sensor, pick the single boundary point closest to the
-    # nearest-neighbor tour order.
     centers = [(s.x, s.y) for s in instance.sensors]
-    nn_order = nearest_neighbor_tour(centers)
-
-    # Map ordered centers back to sensors
-    center_to_sensor = {(s.x, s.y): s for s in instance.sensors}
+    sensor_order = nearest_neighbor_order_indices(centers)
 
     path = []
-    for center in nn_order:
-        sensor = center_to_sensor[center]
-        candidates = boundary_sample(sensor, n_boundary)
-        if not path:
-            path.append(candidates[0])
-        else:
-            best = min(candidates, key=lambda p: euclidean(path[-1], p))
-            path.append(best)
+    for idx in sensor_order:
+        sensor = instance.sensors[idx]
+        previous = path[-1] if path else None
+        path.append(choose_boundary_point(sensor, previous, n_boundary))
 
-    return path, tour_length(path)
+    length = tour_length(path) if closed else path_length(path)
+    return path, length
 
 
 # =============================================================================
@@ -198,12 +229,13 @@ def cluster_sensors(instance: Instance, method: str = "kmeans", n_clusters: int 
 
     if method == "kmeans":
         k = n_clusters or max(2, instance.n // 5)
+        k = min(k, instance.n)  # CHANGED: avoids invalid k > number of sensors.
         labels = KMeans(n_clusters=k, random_state=42, n_init="auto").fit_predict(coords)
 
     elif method == "dbscan":
         eps = 15.0
         labels = DBSCAN(eps=eps, min_samples=2).fit_predict(coords)
-        # Noise points (-1) become their own single-sensor clusters
+        # Noise points (-1) become their own single-sensor clusters.
         max_label = labels.max()
         for i, lbl in enumerate(labels):
             if lbl == -1:
@@ -226,22 +258,67 @@ def centroid(sensors: list[Sensor]) -> tuple:
     )
 
 
-def two_opt(path: list[tuple], max_iter: int = 1000) -> list[tuple]:
-    """2-opt local search to shorten a tour."""
+def two_opt(path: list[tuple], closed: bool = False, max_iter: int = 1000) -> list[tuple]:
+    """
+    2-opt local search.
+
+    CHANGED: Uses the same objective that is later reported:
+    - path_length for open robot paths
+    - tour_length for closed tours
+    """
+    if len(path) < 4:
+        return list(path)
+
+    cost = tour_length if closed else path_length
     best = list(path)
+    best_cost = cost(best)
+
     improved = True
     iteration = 0
     while improved and iteration < max_iter:
         improved = False
         iteration += 1
+
+        # For an open path, keep the start fixed by beginning i at 1.
+        # For a closed tour, i could start at 0, but keeping it fixed is harmless.
         for i in range(1, len(best) - 1):
             for j in range(i + 1, len(best)):
-                # Reverse segment [i..j]
                 new = best[:i] + best[i:j + 1][::-1] + best[j + 1:]
-                if tour_length(new) < tour_length(best):
+                new_cost = cost(new)
+                if new_cost + 1e-9 < best_cost:
                     best = new
+                    best_cost = new_cost
                     improved = True
+                    break
+            if improved:
+                break
+
     return best
+
+
+def order_sensors_inside_cluster(
+    sensors: list[Sensor],
+    previous_point: tuple | None = None,
+) -> list[Sensor]:
+    """
+    Order sensors in a cluster by nearest-neighbor over their centers.
+
+    CHANGED: Hybrid now orders actual sensors, then chooses one boundary point
+    for each sensor. It no longer orders every boundary sample as if each sample
+    were a required city.
+    """
+    if not sensors:
+        return []
+
+    centers = [(s.x, s.y) for s in sensors]
+
+    if previous_point is None:
+        start_idx = 0
+    else:
+        start_idx = min(range(len(sensors)), key=lambda i: euclidean(previous_point, centers[i]))
+
+    order = nearest_neighbor_order_indices(centers, start_idx=start_idx)
+    return [sensors[i] for i in order]
 
 
 def hybrid_algorithm(
@@ -250,58 +327,51 @@ def hybrid_algorithm(
     n_clusters: int = None,
     n_boundary: int = 12,
     use_2opt: bool = True,
+    closed: bool = False,
 ) -> tuple[list[tuple], float]:
     """
     Algorithm 3: Hybrid Spatial Clustering + Boundary Sampling + 2-opt.
 
     Steps:
       1. Cluster sensors spatially.
-      2. Build global route over cluster centroids (nearest-neighbor).
-      3. Within each cluster, sample boundary points and solve local TSP.
-      4. Concatenate local paths into a full drone path.
-      5. Optionally refine with 2-opt.
+      2. Build global route over cluster centroids.
+      3. Within each cluster, order sensors by centers.
+      4. For each sensor, choose exactly ONE boundary touch point.
+      5. Optionally refine the resulting touch-point path with 2-opt.
 
     Returns (path, length).
     """
-    # Step 1: Cluster
+    # Step 1: Cluster.
     clusters = cluster_sensors(instance, method=cluster_method, n_clusters=n_clusters)
 
-    # Step 2: Global route over centroids
+    # Step 2: Global route over cluster centroids.
     cluster_ids = list(clusters.keys())
     centroids = {cid: centroid(clusters[cid]) for cid in cluster_ids}
     centroid_points = [centroids[cid] for cid in cluster_ids]
-    global_order_points = nearest_neighbor_tour(centroid_points)
+    global_order_indices = nearest_neighbor_order_indices(centroid_points)
+    global_order = [cluster_ids[i] for i in global_order_indices]
 
-    # Map centroid points back to cluster ids
-    point_to_cid = {centroids[cid]: cid for cid in cluster_ids}
-    global_order = [point_to_cid[p] for p in global_order_points]
-
-    # Step 3 & 4: Local boundary sampling per cluster, stitch together
+    # Steps 3 & 4: Build one touch point per sensor.
     full_path = []
     for cid in global_order:
         sensors_in_cluster = clusters[cid]
+        previous = full_path[-1] if full_path else None
 
-        # Gather all boundary candidates for this cluster
-        all_candidates = []
-        for sensor in sensors_in_cluster:
-            all_candidates.extend(boundary_sample(sensor, n_boundary))
+        # CHANGED: Order sensors, not boundary candidates.
+        ordered_sensors = order_sensors_inside_cluster(sensors_in_cluster, previous)
 
-        # Solve local nearest-neighbor tour over candidates
-        if not all_candidates:
-            continue
+        # CHANGED: Choose exactly one boundary point per sensor.
+        for sensor in ordered_sensors:
+            previous = full_path[-1] if full_path else None
+            touch_point = choose_boundary_point(sensor, previous, n_boundary)
+            full_path.append(touch_point)
 
-        start = all_candidates[0] if not full_path else min(
-            all_candidates, key=lambda p: euclidean(full_path[-1], p)
-        )
-        start_idx = all_candidates.index(start)
-        local_path = nearest_neighbor_tour(all_candidates, start_idx=start_idx)
-        full_path.extend(local_path)
-
-    # Step 5: 2-opt refinement
+    # Step 5: 2-opt refinement on the actual displayed/reported objective.
     if use_2opt and len(full_path) > 3:
-        full_path = two_opt(full_path)
+        full_path = two_opt(full_path, closed=closed)
 
-    return full_path, tour_length(full_path)
+    length = tour_length(full_path) if closed else path_length(full_path)
+    return full_path, length
 
 
 # =============================================================================
@@ -335,8 +405,14 @@ def plot_instance_and_path(
     path: list[tuple],
     title: str = "Drone Path",
     clusters: dict = None,
+    closed: bool = False,
 ):
-    """Plot sensors, their coverage radii, and the drone path."""
+    """
+    Plot sensors, their coverage radii, and the drone path.
+
+    CHANGED: The title length now matches the chosen open/closed path setting.
+    If closed=True, the return-to-start edge is drawn too.
+    """
     fig, ax = plt.subplots(figsize=(9, 9))
     colors = plt.cm.tab10.colors
 
@@ -360,10 +436,14 @@ def plot_instance_and_path(
     if path:
         xs, ys = zip(*path)
         ax.plot(xs, ys, '-', color='black', linewidth=1.0, alpha=0.7, label='Drone path')
+        if closed and len(path) > 1:
+            ax.plot([xs[-1], xs[0]], [ys[-1], ys[0]], '--', color='black', linewidth=1.0, alpha=0.5, label='Return edge')
         ax.plot(xs[0], ys[0], 'g^', markersize=10, label='Start')
         ax.plot(xs[-1], ys[-1], 'rs', markersize=8, label='End')
 
-    ax.set_title(f"{title}\nPath length: {tour_length(path):.2f}")
+    length = tour_length(path) if closed else path_length(path)
+    mode = "closed tour" if closed else "open path"
+    ax.set_title(f"{title}\n{mode} length: {length:.2f}")
     ax.set_aspect('equal')
     ax.legend()
     plt.tight_layout()
@@ -380,10 +460,13 @@ def run_benchmark(
     n_sensors_list: list[int] = [10, 20, 50],
     distributions: list[str] = ["uniform", "clustered"],
     seed: int = 42,
+    closed: bool = False,
 ):
     """
     Run all three algorithms across instance sizes and distributions.
     Prints a comparison table.
+
+    CHANGED: Benchmark uses the same open/closed setting for every algorithm.
     """
     print(f"{'n':>5} {'dist':>10} {'center':>12} {'boundary':>12} {'hybrid':>12}")
     print("-" * 58)
@@ -392,9 +475,8 @@ def run_benchmark(
         for dist in distributions:
             inst = generate_instance(n, distribution=dist, seed=seed)
 
-            _, c_len  = center_based_heuristic(inst)
-            _, b_len  = boundary_sampling(inst)
-            _, h_len  = hybrid_algorithm(inst)
+            _, c_len = center_based_heuristic(inst, closed=closed)
+            _, b_len = boundary_sampling(inst, closed=closed)
+            _, h_len = hybrid_algorithm(inst, closed=closed)
 
             print(f"{n:>5} {dist:>10} {c_len:>12.2f} {b_len:>12.2f} {h_len:>12.2f}")
-
