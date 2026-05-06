@@ -15,6 +15,12 @@ import random
 import math
 
 
+# Fractional inset applied to sensor radius when sampling boundary points so
+# that floating-point arithmetic in cos/sin never pushes a sample point
+# outside the sensor's coverage area.
+_BOUNDARY_INSET = 1e-9
+
+
 # =============================================================================
 # DATA STRUCTURES
 # =============================================================================
@@ -98,11 +104,18 @@ def generate_instance(
 # =============================================================================
 
 def boundary_sample(sensor: Sensor, n_points: int = 12) -> list[tuple]:
-    """Sample candidate points evenly around a sensor's boundary circle."""
+    """Sample candidate points evenly around a sensor's boundary circle.
+
+    Points are placed at (1 - _BOUNDARY_INSET) * radius so that floating-point
+    arithmetic in the trigonometric functions never pushes a point
+    outside the coverage area, ensuring sensor.covers(p) is always True
+    for every returned point.
+    """
     angles = np.linspace(0, 2 * math.pi, n_points, endpoint=False)
+    r = sensor.radius * (1 - _BOUNDARY_INSET)
     return [
-        (sensor.x + sensor.radius * math.cos(a),
-         sensor.y + sensor.radius * math.sin(a))
+        (sensor.x + r * math.cos(a),
+         sensor.y + r * math.sin(a))
         for a in angles
     ]
 
@@ -257,9 +270,12 @@ def hybrid_algorithm(
     Steps:
       1. Cluster sensors spatially.
       2. Build global route over cluster centroids (nearest-neighbor).
-      3. Within each cluster, sample boundary points and solve local TSP.
+      3. Within each cluster, pick the closest boundary point per sensor so
+         every sensor contributes at least one waypoint to the path.
       4. Concatenate local paths into a full drone path.
       5. Optionally refine with 2-opt.
+      6. Validate coverage; insert best-insertion waypoints for any sensor
+         that remains uncovered and report results.
 
     Returns (path, length).
     """
@@ -276,30 +292,67 @@ def hybrid_algorithm(
     point_to_cid = {centroids[cid]: cid for cid in cluster_ids}
     global_order = [point_to_cid[p] for p in global_order_points]
 
-    # Step 3 & 4: Local boundary sampling per cluster, stitch together
+    # Step 3 & 4: Local boundary sampling per cluster, stitch together.
+    # For each sensor pick the single boundary point closest to the current
+    # path tail so that every sensor is guaranteed to contribute one waypoint.
     full_path = []
     for cid in global_order:
         sensors_in_cluster = clusters[cid]
 
-        # Gather all boundary candidates for this cluster
-        all_candidates = []
         for sensor in sensors_in_cluster:
-            all_candidates.extend(boundary_sample(sensor, n_boundary))
-
-        # Solve local nearest-neighbor tour over candidates
-        if not all_candidates:
-            continue
-
-        start = all_candidates[0] if not full_path else min(
-            all_candidates, key=lambda p: euclidean(full_path[-1], p)
-        )
-        start_idx = all_candidates.index(start)
-        local_path = nearest_neighbor_tour(all_candidates, start_idx=start_idx)
-        full_path.extend(local_path)
+            candidates = boundary_sample(sensor, n_boundary)
+            if not full_path:
+                chosen = candidates[0]
+            else:
+                chosen = min(candidates, key=lambda p: euclidean(full_path[-1], p))
+            full_path.append(chosen)
 
     # Step 5: 2-opt refinement
     if use_2opt and len(full_path) > 3:
         full_path = two_opt(full_path)
+
+    # Step 6: Validate coverage; insert extra waypoints for uncovered sensors.
+    coverage = validate_path(full_path, instance)
+    if not coverage["all_covered"]:
+        uncovered_ids = [sid for sid, ok in coverage["per_sensor"].items() if not ok]
+        print(
+            f"[hybrid_algorithm] Warning: {len(uncovered_ids)} sensor(s) uncovered "
+            f"after 2-opt: {uncovered_ids}. Inserting coverage points."
+        )
+        sensor_map = {s.id: s for s in instance.sensors}
+        for sid in uncovered_ids:
+            sensor = sensor_map[sid]
+            candidates = boundary_sample(sensor, n_boundary)
+            best_point = None
+            best_pos = 0
+            best_cost = float("inf")
+            for pt in candidates:
+                for i in range(len(full_path)):
+                    a = full_path[i]
+                    b = full_path[(i + 1) % len(full_path)]
+                    cost = euclidean(a, pt) + euclidean(pt, b) - euclidean(a, b)
+                    if cost < best_cost:
+                        best_cost = cost
+                        best_point = pt
+                        best_pos = i + 1
+            if best_point is not None:
+                full_path.insert(best_pos, best_point)
+
+        final_coverage = validate_path(full_path, instance)
+        print(
+            f"[hybrid_algorithm] Coverage after fix: "
+            f"{final_coverage['n_covered']}/{final_coverage['n_total']} sensors covered."
+        )
+        if not final_coverage["all_covered"]:
+            still_uncovered = [
+                sid for sid, ok in final_coverage["per_sensor"].items() if not ok
+            ]
+            print(f"[hybrid_algorithm] Still uncovered: {still_uncovered}")
+    else:
+        print(
+            f"[hybrid_algorithm] Coverage: "
+            f"{coverage['n_covered']}/{coverage['n_total']} sensors covered."
+        )
 
     return full_path, tour_length(full_path)
 
