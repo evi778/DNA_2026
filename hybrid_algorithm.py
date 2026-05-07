@@ -195,4 +195,3 @@ def hybrid_algorithm(
 
     length = tour_length(full_path) if closed else path_length(full_path)
     return full_path, length
-

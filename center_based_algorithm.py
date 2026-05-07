@@ -21,4 +21,3 @@ def center_based_heuristic(instance: Instance, closed: bool = False) -> tuple:
     path = nearest_neighbor_tour(centers)
     length = tour_length(path) if closed else path_length(path)
     return path, length
-

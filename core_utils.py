@@ -191,4 +191,3 @@ def validate_path(path: list[tuple], instance: Instance) -> dict:
         "n_total": instance.n,
         "all_covered": n_covered == instance.n,
     }
-

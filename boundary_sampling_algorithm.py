@@ -38,4 +38,3 @@ def boundary_sampling(
 
     length = tour_length(path) if closed else path_length(path)
     return path, length
-

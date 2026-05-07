@@ -264,7 +264,7 @@ def main():
     print("\n" + "="*100)
     print("Generating benchmark report and analysis graphs...")
     print("="*100)
-
+    
     json_results_path = f"{OUTPUT_DIR}/benchmark_results.json"
     try:
         generate_benchmark_graphs(json_results_path, OUTPUT_DIR)

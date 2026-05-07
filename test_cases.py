@@ -110,7 +110,7 @@ TEST_CASES = {
         "distribution": "uniform",
         "seed": 53,
     },
-
+    
     # Same radii for all sensors (uniform coverage)
     "uniform_radii_small_10": {
         "n_sensors": 10,
@@ -223,5 +223,4 @@ def get_clustered_test_cases() -> list:
 def get_uniform_test_cases() -> list:
     """Get test cases with uniform distribution."""
     return [name for name in TEST_CASES.keys() if "uniform" in name or "sparse" in name or "dense" in name or "very_large_space" in name]
-
 

@@ -142,4 +142,3 @@ def create_comparison_plot(
     plt.close()
 
 
-

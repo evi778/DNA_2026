@@ -139,7 +139,7 @@ The benchmark report includes:
 - [x] Test case analysis
 - [x] Future improvement suggestions
 
-## 📊 Generated Assets Summary
+##  Generated Assets Summary
 
 ### Python Files (9 total)
 ```
@@ -174,7 +174,7 @@ The benchmark report includes:
 ✅ results/graphs/              [7 PNG files - analysis graphs]
 ```
 
-## 🎯 Key Results
+##  Key Results
 
 ### Performance Comparison
 | Algorithm | Avg Path Length | Avg Time | Coverage |
@@ -192,7 +192,7 @@ The benchmark report includes:
   - [x] 3+ radius range variations
   - [x] Scalability from 10 to 100 sensors
 
-## 📋 Files Structure
+##  Files Structure
 
 ```
 DNA_2026/
@@ -222,7 +222,7 @@ DNA_2026/
     └── graphs/                          ✅ (7 PNG)
 ```
 
-## 🚀 How to Use
+##  How to Use
 
 1. **Read the Report**: `results/BENCHMARK_REPORT.md`
 2. **View Visualizations**: Open PNG files in `results/`
@@ -244,7 +244,7 @@ DNA_2026/
 - [x] Code is well-documented
 - [x] Project is reproducible
 
-## 🎁 Deliverables Summary
+##  Deliverables Summary
 
 **Total Files Created/Modified: 16**
 - 9 Python files (algorithms, utilities, orchestration)
@@ -257,7 +257,7 @@ DNA_2026/
 **Total Documentation: ~1,000+ lines**
 **Total Size: 15 MB results + ~80 KB code**
 
-## 📈 Benchmark Execution Result
+##  Benchmark Execution Result
 
 ✅ **ALL 12 TEST CASES COMPLETED SUCCESSFULLY**
 - ✅ Center-Based: 12/12 test cases
@@ -267,7 +267,7 @@ DNA_2026/
 - ✅ Analysis graphs: 7 comprehensive analysis graphs
 - ✅ Coverage: 100% (all 12 test cases, all 3 algorithms)
 
-## 🔒 Project Status
+##  Project Status
 
 **✅ PROJECT COMPLETE - ALL REQUIREMENTS MET**
 
@@ -282,4 +282,3 @@ The TSPN drone path planning system is now:
 - ✅ Extensible for future improvements
 
 **Ready for deployment and further development!**
-

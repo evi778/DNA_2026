@@ -1,6 +1,6 @@
 # Quick Start Guide - TSPN Drone Path Planning
 
-## 🚀 Start Here
+##  Start Here
 
 ### 1. Read the Documentation First
 The documentation files are in order of detail level:
@@ -37,7 +37,7 @@ Navigate to `results/` directory to view:
 
 - **benchmark_results.json** - Raw data for further analysis
 
-## 📁 File Guide
+##  File Guide
 
 ### Algorithm Files (Separated & Modular)
 ```
@@ -61,7 +61,7 @@ Navigate to `results/` directory to view:
 ✅ requirements.txt # Python dependencies
 ```
 
-## 🎯 Quick Commands
+##  Quick Commands
 
 ### Run Everything (Generate all results)
 ```bash
@@ -82,7 +82,7 @@ instance = generate_instance(n_sensors=20, distribution="clustered")
 path, length = center_based_heuristic(instance)
 ```
 
-## 📊 What Was Generated
+##  What Was Generated
 
 ### Visualizations
 - ✅ **48 individual visualizations** - One for each algorithm on each test case
@@ -101,7 +101,7 @@ path, length = center_based_heuristic(instance)
 - ✅ X-Large instances (100 sensors)
 - ✅ Special cases (sparse, dense, tight clusters, large space)
 
-## 🔑 Key Findings
+##  Key Findings
 
 ### Performance Summary
 ```
@@ -116,7 +116,7 @@ path, length = center_based_heuristic(instance)
 ⭐ Hybrid provides ~8-15% shorter paths = RECOMMENDED for production
 ```
 
-## 📖 How to Navigate Results
+##  How to Navigate Results
 
 ### Option 1: Visual Overview (Fastest)
 1. Open `results/comparisons/` folder
@@ -137,7 +137,7 @@ with open('results/benchmark_results.json') as f:
     data = json.load(f)
 ```
 
-## 🎓 Test Cases Explained
+##  Test Cases Explained
 
 | Size | Name | Sensors | Key Characteristic |
 |------|------|---------|-------------------|
@@ -154,7 +154,7 @@ with open('results/benchmark_results.json') as f:
 | Special | tight_clusters_30 | 30 | Very tight clustering |
 | Special | very_large_space_30 | 30 | Very sparse space |
 
-## 💡 Algorithm Recommendations
+##  Algorithm Recommendations
 
 ### Use Center-Based When:
 - You need the fastest solution
@@ -178,7 +178,7 @@ with open('results/benchmark_results.json') as f:
 - You have clustered sensor distributions
 - **Average performance: 557.38 path length (Best!)**
 
-## 🔄 Workflow
+##  Workflow
 
 ```
 1. Read PROJECT_SUMMARY.md
@@ -196,7 +196,7 @@ with open('results/benchmark_results.json') as f:
 7. Experiment with your own test cases
 ```
 
-## 🛠️ Customization Examples
+## ️ Customization Examples
 
 ### Add Your Own Test Case
 ```python
@@ -252,7 +252,7 @@ plot_instance_and_path(
 )
 ```
 
-## 📈 Interpreting the Graphs
+##  Interpreting the Graphs
 
 ### 01 - Path Length Comparison
 **What it shows**: Solution quality comparison
@@ -289,7 +289,7 @@ plot_instance_and_path(
 **Color scale**: Green (good) to Red (bad)
 **Key insight**: Hybrid wins on quality/coverage
 
-## 🎯 Next Steps
+##  Next Steps
 
 1. ✅ Review the benchmark report
 2. ✅ Examine visualizations for your use case
@@ -299,16 +299,15 @@ plot_instance_and_path(
 6. ✅ Experiment with parameters
 7. ✅ Deploy or extend as necessary
 
-## 📞 Need Help?
+##  Need Help?
 
 1. **Understanding algorithms?** → Read README.md → "Algorithm Details" section
 2. **Confused about results?** → Open results/BENCHMARK_REPORT.md
 3. **Want to customize?** → Check "Extending the Project" in README.md
 4. **Running errors?** → Check requirements.txt and install dependencies
 
-## 🎉 You're All Set!
+##  You're All Set!
 
 The TSPN drone path planning system is ready to use. Start with the documentation, explore the visualizations, and choose the algorithm that best fits your needs!
 
-**Enjoy your benchmarking! 🚀**
-
+**Enjoy your benchmarking! **

@@ -323,4 +323,3 @@ Academic project - feel free to modify and extend
 ---
 
 For detailed benchmark results and analysis, see `results/BENCHMARK_REPORT.md`
-
